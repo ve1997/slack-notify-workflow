@@ -24,13 +24,15 @@ jobs:
       - name: Check for Conflict Label
         id: check_conflict
         run: |
-          PR_NUMBER=$(echo ${{ github.event.pull_request.number }})
+          PR_NUMBER=${{ github.event.pull_request.number }}
           CONFLICT_LABEL=$(gh pr view $PR_NUMBER --json labels -q '.labels | .[] | select(.name == "conflict") | .name' || true)
           if [[ -n "$CONFLICT_LABEL" ]]; then
             echo "conflict_found=true" >> $GITHUB_ENV
           else
             echo "conflict_found=false" >> $GITHUB_ENV
           fi
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       # Slack通知のステップ
       - name: Send Slack Notification
