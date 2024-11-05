@@ -1,23 +1,44 @@
-name: Slack Workflow
+name: "Conflict Finder with Slack Notification"
 on:
   push:
     branches: [main]
   pull_request:
 jobs:
-  build:
+  triage:
     runs-on: ubuntu-latest
     steps:
-      # Check out theis repo
+      # リポジトリのチェックアウト
       - uses: actions/checkout@v4
 
-      # Start a Slack workflow using a webhook trigger
-      # https://github.com/slackapi/slack-github-action
-      - name: Send GitHub Action trigger data to Slack workflow
+      # コンフリクト検出アクションの実行
+      - uses: hcancelik/pr-conflict-finder@v1.0.6
+        with:
+          secret_token: ${{ secrets.GITHUB_TOKEN }}
+          conflict_label: "conflict"
+          max_tries: 5
+          wait_ms: 5000
+
+      # コンフリクトラベルの確認
+      - name: Check for Conflict Label
+        id: check_conflict
+        run: |
+          PR_NUMBER=$(echo ${{ github.event.pull_request.number }})
+          CONFLICT_LABEL=$(gh pr view $PR_NUMBER --json labels -q '.labels | .[] | select(.name == "conflict") | .name' || true)
+          if [[ -n "$CONFLICT_LABEL" ]]; then
+            echo "conflict_found=true" >> $GITHUB_ENV
+          else
+            echo "conflict_found=false" >> $GITHUB_ENV
+          fi
+
+      # Slack通知のステップ（コンフリクトがある場合のみ実行）
+      - name: Send Slack Notification
+        if: env.conflict_found == 'true'
         id: slack
         uses: slackapi/slack-github-action@v1.27.0
         with:
           payload: |
             {
+              "text": "コンフリクトが検出されました。PR #${{ github.event.pull_request.number }} をご確認ください。",
               "author": "${{ github.event.sender.login }}",
               "url": "${{ github.event.pull_request.html_url || github.event.head_commit.url }}"
             }
